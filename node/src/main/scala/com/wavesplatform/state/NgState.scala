@@ -38,10 +38,7 @@ class NgState(
   def cancelExpiredLeases(diff: Diff): Diff =
     leasesToCancel
       .collect { case (id, ld) if diff.leaseState.getOrElse(id, true) => ld }
-      .foldLeft(diff) {
-        case (d, ld) =>
-          Monoid.combine(d, ld)
-      }
+      .foldLeft(diff)(Monoid.combine)
 
   def microBlockIds: Seq[BlockId] =
     microBlocks.map(_.totalBlockId)

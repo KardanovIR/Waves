@@ -129,22 +129,19 @@ package object appender extends ScorexLogging {
         case x               => x
       }
 
-  private def checkExceptions(height: Int, block: Block): Either[ValidationError, Unit] = {
-    Either
-      .cond(
-        exceptions.contains((height, block.id())),
-        (),
-        GenericError(s"Block time ${block.header.timestamp} less than expected")
-      )
-  }
+  private def checkExceptions(height: Int, block: Block): Either[ValidationError, Unit] =
+    Either.cond(
+      exceptions.contains((height, block.id())),
+      (),
+      GenericError(s"Block time ${block.header.timestamp} less than expected")
+    )
 
-  private def validateBlockVersion(parentHeight: Int, block: Block, blockchain: Blockchain): Either[ValidationError, Unit] = {
+  private def validateBlockVersion(parentHeight: Int, block: Block, blockchain: Blockchain): Either[ValidationError, Unit] =
     Either.cond(
       blockchain.blockVersionAt(parentHeight + 1) == block.header.version,
       (),
       GenericError(s"Block version should be equal to ${blockchain.blockVersionAt(parentHeight + 1)}")
     )
-  }
 
   private[this] object metrics {
     val blockConsensusValidation = Kamon.timer("block-appender.block-consensus-validation")

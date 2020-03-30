@@ -86,6 +86,8 @@ class BlockchainUpdaterImpl(
 
   def bestLiquidDiffAndFees: Option[(Diff, Long, Long)] = readLock(ngState.map(_.bestLiquidDiffAndFees))
 
+  def blockchain: Blockchain = CompositeBlockchain(leveldb, ngState)
+
   override val settings: BlockchainSettings = wavesSettings.blockchainSettings
 
   override def isLastBlockId(id: ByteStr): Boolean = readLock {

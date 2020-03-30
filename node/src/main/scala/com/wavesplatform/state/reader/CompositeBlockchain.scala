@@ -244,8 +244,16 @@ object CompositeBlockchain {
     }
   }
 
-  def apply(blockchain: Blockchain, ngState: NgState): Blockchain =
-    CompositeBlockchain(blockchain, Some(ngState.bestLiquidDiff), Some(ngState.bestLiquidBlock), ngState.carryFee, ngState.reward)
+  def apply(inner: Blockchain, ngState: NgState): Blockchain = CompositeBlockchain(inner, Some(ngState))
+
+  def apply(inner: Blockchain, maybeNg: Option[NgState]): Blockchain =
+    CompositeBlockchain(
+      inner,
+      maybeNg.map(_.bestLiquidDiff),
+      maybeNg.map(_.bestLiquidBlock),
+      maybeNg.fold(0L)(_.carryFee),
+      maybeNg.flatMap(_.reward)
+    )
 
   def collectActiveLeases(inner: Blockchain, maybeDiff: Option[Diff])(
       filter: LeaseTransaction => Boolean
