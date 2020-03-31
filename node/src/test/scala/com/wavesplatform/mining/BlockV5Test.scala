@@ -365,7 +365,7 @@ class BlockV5Test
             d.appendBlock(keyBlock)
             microBlocks.foreach(d.appendMicroBlock)
 
-            val mb1 = d.blockchainUpdater.microBlock(d.blockchainUpdater.microblockIds.head).get
+            val mb1 = d.blockchainUpdater.microBlock(d.blockchainUpdater.microBlockIds.head).get
             mb1.totalResBlockSig should have length crypto.SignatureLength
             mb1.reference should not be keyBlock.signature
             mb1.reference shouldBe keyBlock.id()

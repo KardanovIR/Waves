@@ -110,17 +110,17 @@ package object appender extends ScorexLogging {
         val blockTime = block.header.timestamp
 
         for {
-          height <- blockchain
+          parentBlockHeight <- blockchain
             .heightOf(block.header.reference)
             .toRight(GenericError(s"height: history does not contain parent ${block.header.reference}"))
           parent <- blockchain.parentHeader(block.header).toRight(GenericError(s"parent: history does not contain parent ${block.header.reference}"))
           grandParent = blockchain.parentHeader(parent, 2)
-          effectiveBalance <- genBalance(height, block.header.reference).left.map(GenericError(_))
-          _                <- validateBlockVersion(height, block, blockchain)
+          effectiveBalance <- genBalance(parentBlockHeight, block.header.reference).left.map(GenericError(_))
+          _                <- validateBlockVersion(parentBlockHeight, block, blockchain)
           _                <- Either.cond(blockTime - currentTs < MaxTimeDrift, (), BlockFromFuture(blockTime))
-          _                <- pos.validateBaseTarget(height, block, parent, grandParent)
+          _                <- pos.validateBaseTarget(parentBlockHeight, block, parent, grandParent)
           hitSource        <- pos.validateGenerationSignature(block)
-          _                <- pos.validateBlockDelay(height, block.header, parent, effectiveBalance).orElse(checkExceptions(height, block))
+          _                <- pos.validateBlockDelay(parentBlockHeight, block.header, parent, effectiveBalance).orElse(checkExceptions(parentBlockHeight, block))
         } yield hitSource
       }
       .left

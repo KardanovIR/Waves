@@ -4,9 +4,9 @@ import cats.data.Ior
 import cats.implicits._
 import com.google.protobuf.ByteString
 import com.wavesplatform.account.{Address, Alias}
-import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.block.{Block, SignedBlockHeader}
 import com.wavesplatform.common.state.ByteStr
+import com.wavesplatform.features.BlockchainFeatures
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.lang.script.Script
 import com.wavesplatform.settings.BlockchainSettings
@@ -22,8 +22,10 @@ final case class CompositeBlockchain(
     inner: Blockchain,
     maybeDiff: Option[Diff] = None,
     newBlock: Option[Block] = None,
-    carry: Long = 0,
-    reward: Option[Long] = None
+    carry: Option[Long] = None,
+    reward: Option[Long] = None,
+    hitSource: Option[ByteStr] = None,
+    newlyApprovedFeatures: Set[Short] = Set.empty
 ) extends Blockchain {
   override val settings: BlockchainSettings = inner.settings
 
@@ -108,7 +110,7 @@ final case class CompositeBlockchain(
     }
   }
 
-  override def balanceSnapshots(address: Address, from: Int, to: Option[BlockId]): Seq[BalanceSnapshot] = {
+  override def balanceSnapshots(address: Address, from: Int, to: Int): Seq[BalanceSnapshot] = {
     if (maybeDiff.isEmpty || to.exists(id => inner.heightOf(id).isDefined)) {
       inner.balanceSnapshots(address, from, to)
     } else {
@@ -140,7 +142,7 @@ final case class CompositeBlockchain(
     diffData.data.get(key).orElse(inner.accountData(acc, key)).filterNot(_.isEmpty)
   }
 
-  override def carryFee: Long = carry
+  override def carryFee: Long = carry.getOrElse(inner.carryFee)
 
   override def score: BigInt = newBlock.fold(BigInt(0))(_.blockScore()) + inner.score
 
@@ -153,20 +155,51 @@ final case class CompositeBlockchain(
   override def heightOf(blockId: ByteStr): Option[Int] = newBlock.filter(_.id() == blockId).map(_ => height) orElse inner.heightOf(blockId)
 
   /** Features related */
-  override def approvedFeatures: Map[Short, Int] = inner.approvedFeatures
+  override def approvedFeatures: Map[Short, Int] =
+    newlyApprovedFeatures.map(_ -> height).toMap ++ inner.approvedFeatures
 
-  override def activatedFeatures: Map[Short, Int] = inner.activatedFeatures
+  override def activatedFeatures: Map[Short, Int] =
+    newlyApprovedFeatures.map(_ -> (height + settings.functionalitySettings.activationWindowSize(height))).toMap ++ inner.activatedFeatures
 
-  override def featureVotes(height: Int): Map[Short, Int] = inner.featureVotes(height)
+  override def featureVotes: Map[Short, Int] = {
+    val innerVotes = inner.featureVotes
+    newBlock match {
+      case Some(b) if this.height <= height =>
+        val ngVotes = b.header.featureVotes.map { featureId =>
+          featureId -> (innerVotes.getOrElse(featureId, 0) + 1)
+        }.toMap
+
+        innerVotes ++ ngVotes
+      case _ => innerVotes
+    }
+  }
 
   /** Block reward related */
-  override def blockReward(height: Int): Option[Long] = reward.filter(_ => this.height == height) orElse inner.blockReward(height)
+  override def blockReward(height: Int): Option[Long] =
+    if (this.height == height) reward else inner.blockReward(height)
 
-  override def blockRewardVotes(height: Int): Seq[Long] = inner.blockRewardVotes(height)
+  override def blockRewardVotes: Seq[Long] =
+    activatedFeatures.get(BlockchainFeatures.BlockReward.id) match {
+      case Some(activatedAt) if activatedAt <= height =>
+        newBlock match {
+          case None => inner.blockRewardVotes
+          case Some(b) =>
+            val innerVotes = inner.blockRewardVotes
+            if (height == this.height && settings.rewardsSettings.votingWindow(activatedAt, height).contains(height))
+              innerVotes :+ b.header.rewardVote
+            else innerVotes
+        }
+      case None => Seq()
+    }
 
-  override def wavesAmount(height: Int): BigInt = inner.wavesAmount(height)
+  override def wavesAmount(height: Int): BigInt =
+    reward match {
+      case Some(rv) if this.height == height => inner.wavesAmount(height - 1) + rv
+      case _                                 => inner.wavesAmount(height)
+    }
 
-  override def hitSource(height: Int): Option[ByteStr] = inner.hitSource(height)
+  override def hitSource(height: Int): Option[ByteStr] =
+    if (this.height == height) hitSource else inner.hitSource(height)
 }
 
 object CompositeBlockchain {
@@ -244,16 +277,11 @@ object CompositeBlockchain {
     }
   }
 
-  def apply(inner: Blockchain, ngState: NgState): Blockchain = CompositeBlockchain(inner, Some(ngState))
+  def apply(inner: Blockchain, ngState: NGS): Blockchain =
+    CompositeBlockchain(inner, Some(ngState.totalDiff), Some(ngState.totalBlock), Some(ngState.carry), ngState.reward, ngState.approvedFeatures)
 
-  def apply(inner: Blockchain, maybeNg: Option[NgState]): Blockchain =
-    CompositeBlockchain(
-      inner,
-      maybeNg.map(_.bestLiquidDiff),
-      maybeNg.map(_.bestLiquidBlock),
-      maybeNg.fold(0L)(_.carryFee),
-      maybeNg.flatMap(_.reward)
-    )
+  def apply(inner: Blockchain, maybeNg: Option[NGS]): Blockchain =
+    maybeNg.fold(inner)(CompositeBlockchain(inner, _))
 
   def collectActiveLeases(inner: Blockchain, maybeDiff: Option[Diff])(
       filter: LeaseTransaction => Boolean

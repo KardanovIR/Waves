@@ -9,7 +9,6 @@ import com.google.common.hash._
 import com.google.common.primitives.{Bytes, Shorts}
 import com.wavesplatform.account.{Address, Alias}
 import com.wavesplatform.api.BlockMeta
-import com.wavesplatform.block.Block.BlockId
 import com.wavesplatform.block.{Block, SignedBlockHeader}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils._
@@ -428,7 +427,7 @@ class LevelDBWriter(
       val activationWindowSize = settings.functionalitySettings.activationWindowSize(height)
       if (height % activationWindowSize == 0) {
         val minVotes = settings.functionalitySettings.blocksForFeatureActivation(height)
-        val newlyApprovedFeatures = featureVotes(height)
+        val newlyApprovedFeatures = featureVotes
           .filterNot { case (featureId, _) => settings.functionalitySettings.preActivatedFeatures.contains(featureId) }
           .collect {
             case (featureId, voteCount) if voteCount + (if (block.header.featureVotes.contains(featureId)) 1 else 0) >= minVotes =>
@@ -742,11 +741,10 @@ class LevelDBWriter(
     }
   }
 
-  override def balanceSnapshots(address: Address, from: Int, to: Option[BlockId]): Seq[BalanceSnapshot] = readOnly { db =>
+  override def balanceSnapshots(address: Address, from: Int, toHeight: Int): Seq[BalanceSnapshot] = readOnly { db =>
     db.get(Keys.addressId(address)).fold(Seq(BalanceSnapshot(1, 0, 0, 0))) { addressId =>
-      val toHeigth = to.flatMap(this.heightOf).getOrElse(this.height)
-      val wbh      = slice(db.get(Keys.wavesBalanceHistory(addressId)), from, toHeigth)
-      val lbh      = slice(db.get(Keys.leaseBalanceHistory(addressId)), from, toHeigth)
+      val wbh      = slice(db.get(Keys.wavesBalanceHistory(addressId)), from, toHeight)
+      val lbh      = slice(db.get(Keys.leaseBalanceHistory(addressId)), from, toHeight)
       for {
         (wh, lh) <- merge(wbh, lbh)
         wb = balanceAtHeightCache.get((wh, addressId), () => db.get(Keys.wavesBalance(addressId)(wh)))
@@ -833,12 +831,11 @@ class LevelDBWriter(
     readOnly(_.get(Keys.heightOf(blockId)))
   }
 
-  override def featureVotes(height: Int): Map[Short, Int] = readOnly { db =>
+  override def featureVotes: Map[Short, Int] = readOnly { db =>
     settings.functionalitySettings
       .activationWindow(height)
       .flatMap { h =>
-        val height = Height(h)
-        db.get(Keys.blockMetaAt(height))
+        db.get(Keys.blockMetaAt(Height(h)))
           .map(_.header.featureVotes.toSeq)
           .getOrElse(Seq.empty)
       }
