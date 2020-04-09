@@ -139,7 +139,7 @@ object TransactionDiffer {
 
   private def acceptFailedTransaction(blockchain: Blockchain, tx: Transaction): Boolean =
     (tx.typeId == InvokeScriptTransaction.typeId || tx.typeId == ExchangeTransaction.typeId) &&
-      blockchain.isFeatureActivated(BlockchainFeatures.AcceptFailedScriptTransaction)
+      blockchain.isFeatureActivated(BlockchainFeatures.BlockV5)
 
   private object isFailedTransaction {
     def unapply(result: TracedResult[ValidationError, Diff]): Boolean =

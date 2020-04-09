@@ -9,12 +9,12 @@ import com.google.protobuf.ByteString
 import com.wavesplatform.account.{Address, AddressScheme, PublicKey}
 import com.wavesplatform.common.state.ByteStr
 import com.wavesplatform.common.utils.EitherExt2
+import com.wavesplatform.features.BlockchainFeatures._
 import com.wavesplatform.features.EstimatorProvider._
 import com.wavesplatform.features.FeatureProvider.FeatureProviderExt
 import com.wavesplatform.features.FunctionCallPolicyProvider._
 import com.wavesplatform.features.InvokeScriptSelfPaymentPolicyProvider._
 import com.wavesplatform.features.ScriptTransferValidationProvider._
-import com.wavesplatform.features.BlockchainFeatures._
 import com.wavesplatform.lang._
 import com.wavesplatform.lang.directives.DirectiveSet
 import com.wavesplatform.lang.directives.values.{DApp => DAppType, _}
@@ -352,7 +352,7 @@ object InvokeScriptTransactionDiff {
     } yield ()
 
   private def beforeActionsDiff(blockchain: Blockchain, diff: Diff): TracedResult[ValidationError, Diff] =
-    if (blockchain.isFeatureActivated(AcceptFailedScriptTransaction))
+    if (blockchain.isFeatureActivated(BlockV5))
       stats.balanceValidation
         .measureForType(InvokeScriptTransaction.typeId) {
           TracedResult(BalanceDiffValidation(blockchain)(diff))
@@ -486,7 +486,7 @@ object InvokeScriptTransactionDiff {
         }
 
       val diff = action match {
-        case t: AssetTransfer => applyTransfer(t, (if(blockchain.isFeatureActivated(MultiPaymentInvokeScript)) { pk } else { PublicKey(ByteStr.empty) }))
+        case t: AssetTransfer => applyTransfer(t, (if(blockchain.isFeatureActivated(BlockV5)) { pk } else { PublicKey(ByteStr.empty) }))
         case d: DataItem[_]   => applyDataItem(d)
         case i: Issue         => applyIssue(tx, pk, i)
         case r: Reissue       => applyReissue(r, pk)

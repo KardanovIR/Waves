@@ -10,7 +10,7 @@ import com.wavesplatform.lang.contract.DApp.{CallableAnnotation, CallableFunctio
 import com.wavesplatform.lang.directives.values.{StdLibVersion, V3, V4}
 import com.wavesplatform.lang.script.{ContractScript, Script}
 import com.wavesplatform.lang.v1.FunctionHeader.{Native, User}
-import com.wavesplatform.lang.v1.compiler.Terms.{ARR, CONST_LONG, CONST_STRING, FUNC, FUNCTION_CALL, REF}
+import com.wavesplatform.lang.v1.compiler.Terms._
 import com.wavesplatform.lang.v1.evaluator.FunctionIds
 import com.wavesplatform.lang.v1.parser.Parser
 import com.wavesplatform.protobuf.dapp.DAppMeta
@@ -129,7 +129,7 @@ class ListParamInvokeTest extends PropSpec with PropertyChecks with Matchers wit
   }
 
   private def features(withV4: Boolean) = {
-    val v4ForkO = if (withV4) Seq(BlockchainFeatures.MultiPaymentInvokeScript) else Seq()
+    val v4ForkO = if (withV4) Seq(BlockchainFeatures.BlockV5) else Seq()
     val parameters = Seq(
       BlockchainFeatures.SmartAccounts,
       BlockchainFeatures.SmartAssets,

@@ -8,10 +8,10 @@ import com.wavesplatform.features.FeatureProvider._
 import com.wavesplatform.lang.ValidationError
 import com.wavesplatform.metrics.TxProcessingStats
 import com.wavesplatform.state._
-import com.wavesplatform.transaction.{Asset, TxVersion}
 import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
 import com.wavesplatform.transaction.TxValidationError.{GenericError, OrderValidationError}
 import com.wavesplatform.transaction.assets.exchange.{ExchangeTransaction, Order, OrderType}
+import com.wavesplatform.transaction.{Asset, TxVersion}
 
 import scala.util.{Right, Try}
 
@@ -61,7 +61,7 @@ object ExchangeTransactionDiff {
     }
 
     def getFeeDiff(portfolios: Map[Address, Portfolio]): Either[ValidationError, Map[Address, Portfolio]] =
-      if (blockchain.isFeatureActivated(BlockchainFeatures.AcceptFailedScriptTransaction))
+      if (blockchain.isFeatureActivated(BlockchainFeatures.BlockV5))
         stats.balanceValidation
           .measureForType(ExchangeTransaction.typeId) {
             BalanceDiffValidation(blockchain)(Diff(tx, portfolios)).map(_ => portfolios)
