@@ -13,16 +13,17 @@ import com.wavesplatform.state.{Blockchain, Diff, LeaseBalance, Portfolio, Spons
 import com.wavesplatform.transaction.Asset.{IssuedAsset, Waves}
 import com.wavesplatform.transaction.TxValidationError.{GenericError, UnsupportedTransactionType}
 import com.wavesplatform.transaction.assets.exchange.{ExchangeTransaction, Order}
-import com.wavesplatform.transaction.lease.LeaseCancelTransaction
+import com.wavesplatform.transaction.lease.{LeaseCancelTransaction, LeaseTransaction}
 import com.wavesplatform.transaction.smart.InvokeScriptTransaction
-import com.wavesplatform.transaction.{GenesisTransaction, PaymentTransaction, ProvenTransaction, Transaction}
+import com.wavesplatform.transaction._
 
 object FundsValidation {
   def apply(blockchain: Blockchain, tx: Transaction): Either[ValidationError, Unit] = {
     val skip = tx match {
-      case _: LeaseCancelTransaction                                                                                            => true
-      case _: InvokeScriptTransaction | _: ExchangeTransaction if !blockchain.isFeatureActivated(AcceptFailedScriptTransaction) => true
-      case _                                                                                                                    => false
+      case _: LeaseCancelTransaction                                          => true
+      case _ if !blockchain.isFeatureActivated(AcceptFailedScriptTransaction) => true
+      case _ if simpleTypes.contains(tx.typeId)                               => true
+      case _                                                                  => false
     }
 
     if (skip) Right(())
@@ -119,4 +120,12 @@ object FundsValidation {
       paymentsDiff = Diff.empty.copy(portfolios = portfolios)
       _ <- BalanceDiffValidation(blockchain)(paymentsDiff)
     } yield ()
+
+  /** Diffs for this transactions do nothing but construct portfolios */
+  private val simpleTypes: Set[TxType] =
+    Set(
+      GenesisTransaction.typeId,
+      PaymentTransaction.typeId,
+      LeaseTransaction.typeId
+    )
 }

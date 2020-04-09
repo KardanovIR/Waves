@@ -18,6 +18,7 @@ import com.wavesplatform.transaction.smart.{InvokeScriptTransaction, SetScriptTr
 import com.wavesplatform.transaction.transfer._
 import play.api.libs.json.Json
 
+import scala.collection.mutable
 import scala.util.Right
 
 object TransactionDiffer {
@@ -38,11 +39,12 @@ object TransactionDiffer {
       blockchain: Blockchain,
       tx: Transaction
   ): TracedResult[ValidationError, Diff] = {
+    val verifyAssetScripts = verify || blockchain.isFeatureActivated(BlockchainFeatures.AcceptFailedScriptTransaction)
     for {
       _            <- if (verify) common(prevBlockTimestamp, currentBlockTimestamp)(blockchain, tx) else TracedResult(Right(()))
       diff         <- transactionDiff(currentBlockTimestamp)(blockchain, tx)
       positiveDiff <- balance(blockchain, tx, diff)
-      _            <- Verifier.assets(blockchain)(tx)
+      _            <- if (verifyAssetScripts) Verifier.assets(blockchain)(tx) else TracedResult(Right(()))
     } yield positiveDiff
   }.leftMap(TransactionValidationError(_, tx))
 
@@ -117,7 +119,13 @@ object TransactionDiffer {
     for {
       portfolios <- TracedResult.wrapE(FundsValidation.feePortfolios(blockchain, tx))
       mayBeDApp  <- extractDAppAddress(blockchain, tx)
-    } yield Diff.failed(tx, portfolios, mayBeDApp, error)
+    } yield {
+      Diff.empty.copy(
+        transactions = mutable.LinkedHashMap((tx.id(), (tx, (portfolios.keys ++ mayBeDApp.toList).toSet, false))),
+        portfolios = portfolios,
+        scriptResults = Map(tx.id() -> InvokeScriptResult(errorMessage = error))
+      )
+    }
 
   private def extractDAppAddress(blockchain: Blockchain, tx: Transaction): TracedResult[ValidationError, Option[Address]] =
     tx match {
