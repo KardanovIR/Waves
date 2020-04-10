@@ -219,15 +219,6 @@ object Diff {
       scriptsComplexity = scriptsComplexity
     )
 
-  def failed(
-      tx: Transaction,
-      portfolios: Map[Address, Portfolio] = Map.empty
-  ): Diff =
-    empty.copy(
-      transactions = LinkedHashMap((tx.id(), (tx, portfolios.keySet, false))),
-      portfolios = portfolios
-    )
-
   val empty =
     new Diff(LinkedHashMap(), Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, Map.empty, 0, 0, Map.empty)
 
